@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timedelta
 import time
 import tzlocal
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -18,7 +18,7 @@ def get_calendar_service():
     # The file token.json stores the user's access and refresh tokens
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_info(
-            json.loads(open('token.json').read()), SCOPES)
+            json.loads(open('calendar_bot/token.json').read()), SCOPES)
     
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -70,6 +70,77 @@ def get_system_timezone() -> str:
     local_timezone = tzlocal.get_localzone()
     return str(local_timezone)
 
+def create_calendar(calendar_name: str, description: Optional[str] = None, timezone: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Create a new calendar.
+    
+    Args:
+        calendar_name: Name of the calendar
+        description: Optional description of the calendar
+        timezone: Optional timezone (defaults to system timezone)
+    
+    Returns:
+        Dict containing the created calendar details
+    """
+    try:
+        service = get_calendar_service()
+        
+        if timezone is None:
+            timezone = get_system_timezone()
+            
+        calendar = {
+            'summary': calendar_name,
+            'timeZone': timezone
+        }
+        
+        if description:
+            calendar['description'] = description
+            
+        created_calendar = service.calendars().insert(body=calendar).execute()
+        
+        return {
+            'status': 'success',
+            'calendar_id': created_calendar['id'],
+            'summary': created_calendar['summary'],
+            'timezone': created_calendar['timeZone'],
+            'description': created_calendar.get('description', '')
+        }
+        
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
+
+def list_calendars() -> List[Dict[str, Any]]:
+    """
+    List all calendars the user has access to.
+    
+    Returns:
+        List of dictionaries containing calendar details
+    """
+    try:
+        service = get_calendar_service()
+        calendar_list = service.calendarList().list().execute()
+        
+        calendars = []
+        for calendar in calendar_list['items']:
+            calendars.append({
+                'id': calendar['id'],
+                'summary': calendar['summary'],
+                'description': calendar.get('description', ''),
+                'timezone': calendar.get('timeZone', ''),
+                'primary': calendar.get('primary', False)
+            })
+            
+        return calendars
+        
+    except Exception as e:
+        return [{
+            'status': 'error',
+            'error': str(e)
+        }]
+
 def create_calendar_event(
     title: str,
     date: str,
@@ -77,7 +148,8 @@ def create_calendar_event(
     duration_minutes: int = 60,
     description: Optional[str] = None,
     location: Optional[str] = None,
-    attendees: Optional[list] = None
+    attendees: Optional[list] = None,
+    calendar_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Create a Google Calendar event.
@@ -90,6 +162,7 @@ def create_calendar_event(
         description: Optional event description
         location: Optional event location
         attendees: Optional list of attendee email addresses
+        calendar_id: Optional calendar ID (defaults to primary calendar)
     
     Returns:
         Dict containing the created event details
@@ -125,8 +198,11 @@ def create_calendar_event(
         if attendees:
             event['attendees'] = [{'email': email} for email in attendees]
         
+        # Use specified calendar_id or default to primary calendar
+        calendar_id = calendar_id or 'primary'
+        
         # Create the event
-        event = service.events().insert(calendarId='primary', body=event).execute()
+        event = service.events().insert(calendarId=calendar_id, body=event).execute()
         
         return {
             'status': 'success',
@@ -134,7 +210,33 @@ def create_calendar_event(
             'html_link': event['htmlLink'],
             'summary': event['summary'],
             'start': event['start']['dateTime'],
-            'end': event['end']['dateTime']
+            'end': event['end']['dateTime'],
+            'calendar_id': calendar_id
+        }
+        
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
+
+def delete_calendar(calendar_id: str) -> Dict[str, Any]:
+    """
+    Delete a calendar.
+    
+    Args:
+        calendar_id: ID of the calendar to delete
+    
+    Returns:
+        Dict containing the operation status
+    """
+    try:
+        service = get_calendar_service()
+        service.calendars().delete(calendarId=calendar_id).execute()
+        
+        return {
+            'status': 'success',
+            'message': f'Calendar {calendar_id} deleted successfully'
         }
         
     except Exception as e:
