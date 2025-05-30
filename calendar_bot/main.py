@@ -73,14 +73,6 @@ async def chat(request: Request):
         response = agent.process_message(message)
         print(f"Agent response: {response}")  # Log the response
         
-        # Update conversation history
-        if not hasattr(agent, 'conversation_history'):
-            agent.conversation_history = []
-        agent.conversation_history.append({
-            'user': message,
-            'assistant': response
-        })
-        
         return HTMLResponse(get_form_html())
     except Exception as e:
         print(f"Error processing request: {str(e)}")  # Log any errors

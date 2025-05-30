@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+google-api-python-client
+google-auth-oauthlib
+requests
+python-dotenv
+langchain
+langchain-community
+langchain-core
+openai
+mistralai

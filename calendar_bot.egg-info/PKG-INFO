@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: calendar_bot
+Version: 0.1
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: google-api-python-client
+Requires-Dist: google-auth-oauthlib
+Requires-Dist: requests
+Requires-Dist: python-dotenv
+Requires-Dist: langchain
+Requires-Dist: langchain-community
+Requires-Dist: langchain-core
+Requires-Dist: openai
+Requires-Dist: mistralai
+Dynamic: requires-dist

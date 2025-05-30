@@ -42,13 +42,13 @@ class Agent:
         self.conversation_history = []  # Initialize conversation history
         logger.info("Agent initialized")
     
-    def format_conversation_history(self, history: List[Dict[str, str]]) -> str:
+    def format_conversation_history(self) -> str:
         """Format conversation history for context."""
-        if not history:
+        if not self.conversation_history:
             return "No previous conversation."
             
         formatted = []
-        for msg in history:
+        for msg in self.conversation_history:
             formatted.append(f"User: {msg['user']}")
             if 'assistant' in msg:
                 formatted.append(f"Assistant: {msg['assistant']}")
@@ -67,11 +67,12 @@ class Agent:
         """
         try:
             # Format conversation history
-            formatted_history = self.format_conversation_history(conversation_history if conversation_history else self.conversation_history)
-            
+            formatted_history = self.format_conversation_history()
+            print(formatted_history)
+
             # Analyze the message with conversation history
             result = self.analyzer.analyze_message(message, conversation_history=formatted_history)
-            
+            print(result)
             # If it's a calendar event, create it
             if isinstance(result, dict):
                 event = self._create_calendar_event(result)
@@ -131,25 +132,41 @@ class Agent:
             raise
     
     def _format_event_response(self, event: Dict[str, Any]) -> str:
-        """
-        Format a response message for a calendar event operation.
-        
-        Args:
-            event: Dictionary containing event information
+        """Format the event response for display."""
+        try:
+            # Parse the ISO format datetime strings
+            start_time = datetime.fromisoformat(event['start'].replace('Z', '+00:00'))
+            end_time = datetime.fromisoformat(event['end'].replace('Z', '+00:00'))
             
-        Returns:
-            Formatted response string
-        """
-        if event['status'] == 'success':
-            return (
-                f"I've created a calendar event for you:\n"
+            # Format the times in a more readable way
+            start_str = start_time.strftime("%I:%M %p")
+            end_str = end_time.strftime("%I:%M %p")
+            date_str = start_time.strftime("%B %d, %Y")
+            
+            response = (
+                f"✅ Event created successfully!\n\n"
                 f"📅 {event['summary']}\n"
-                f"🕒 {event['start_time']}\n"
-                f"📍 {event.get('location', 'No location specified')}\n"
-                f"🔗 {event['html_link']}"
+                f"📆 {date_str}\n"
+                f"🕒 {start_str} - {end_str}\n"
             )
-        else:
-            return f"I'm sorry, I couldn't create the calendar event: {event.get('error', 'Unknown error')}"
+            
+            # Add optional fields if they exist
+            if event.get('location'):
+                response += f"📍 {event['location']}\n"
+            if event.get('description'):
+                response += f"📝 {event['description']}\n"
+            if event.get('attendees'):
+                attendee_emails = [a['email'] for a in event['attendees']]
+                response += f"👥 Attendees: {', '.join(attendee_emails)}\n"
+            
+            # Add the calendar link
+            response += f"\n🔗 {event['html_link']}"
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error formatting event response: {str(e)}")
+            return "Event created, but there was an error formatting the response."
 
 def test_agent():
     """Test the Agent with various inputs."""

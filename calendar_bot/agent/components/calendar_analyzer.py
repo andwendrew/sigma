@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 import sys
 import os
 import logging
@@ -6,7 +6,7 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-from calendar_bot.llm.mistral_local import get_mistral_llm
+from calendar_bot.llm.llama_local import get_llama_llm
 from calendar_bot.agent.components.prompts import CALENDAR_ANALYZER_PROMPT
 
 # Set up logging
@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Model configuration
-MODEL_NAME = "mistral"
+MODEL_NAME = "llama2"
 _llm_instance = None
 
 def get_llm():
@@ -22,7 +22,13 @@ def get_llm():
     global _llm_instance
     if _llm_instance is None:
         logger.info("Initializing LLM with model: %s", MODEL_NAME)
-        _llm_instance = get_mistral_llm()
+        _llm_instance = get_llama_llm(
+            system_prompt="You are a helpful assistant that creates calendar events.",
+            temperature=0.7,
+            top_p=0.9,
+            top_k=40,
+            num_predict=2048
+        )
     return _llm_instance
 
 class CalendarAnalyzer:
@@ -38,6 +44,33 @@ class CalendarAnalyzer:
         self.llm = get_llm()
         self.default_duration = default_duration
         logger.info("CalendarAnalyzer initialized with default duration: %d minutes", default_duration)
+    
+    def _parse_attendees(self, attendees_str: str) -> List[str]:
+        """
+        Parse attendees string into a list of email addresses.
+        Only includes strings that contain '@' as they are considered email addresses.
+        
+        Args:
+            attendees_str: Comma-separated string of attendees
+            
+        Returns:
+            List of email addresses
+        """
+        if not attendees_str or attendees_str.lower() == "none":
+            return []
+            
+        # Split by comma and clean up each attendee
+        attendees = [a.strip() for a in attendees_str.split(",")]
+        
+        # Only keep attendees that look like email addresses
+        email_attendees = [a for a in attendees if "@" in a]
+        
+        if email_attendees:
+            logger.info(f"Parsed attendees: {email_attendees}")
+        else:
+            logger.info("No valid email addresses found in attendees")
+            
+        return email_attendees
         
     def analyze_message(self, message: str, conversation_history: Optional[str] = None) -> Union[Dict[str, Any], str]:
         """
@@ -52,111 +85,79 @@ class CalendarAnalyzer:
         """
         if not message or not isinstance(message, str):
             raise ValueError("Message must be a non-empty string")
-
+            
+        logger.info("Analyzing message: %s", message)
+        
+        # Format the prompt with current date and conversation history
+        today = datetime.now().strftime("%Y-%m-%d")
+        day_of_week = datetime.now().strftime("%A")
+        formatted_prompt = CALENDAR_ANALYZER_PROMPT.format(
+            today=today,
+            day_of_week=day_of_week,
+            conversation_history=conversation_history,
+            message=message
+        )
+        
         try:
-            logger.debug("Analyzing message: %s", message)
-            today = datetime.now()
+            # Get response from LLM
+            response = self.llm(formatted_prompt)
+            logger.info("Received response from LLM")
             
-            # Format the prompt with current date and message
-            prompt = CALENDAR_ANALYZER_PROMPT.format(
-                today=today.strftime("%A, %B %d, %Y"),
-                day_of_week=today.strftime("%A"),
-                message=message,
-                conversation_history=conversation_history or "No previous conversation."
-            )
-            
-            # Get response from Mistral
-            response = self.llm(prompt).strip()
-            
-            if response.startswith("CALENDAR"):
-                return self.extract_event_details(response)
-                    
-            logger.debug("Message is not a calendar event, returning natural response")
-            return response
-            
-        except Exception as e:
-            logger.error("Error analyzing message: %s", str(e), exc_info=True)
-            return "I'm sorry, I encountered an error processing your message."
-        
-    def extract_event_details(self, response: str) -> Dict[str, Any]:
-        """
-        Extract event details from a CALENDAR formatted response.
-        
-        Args:
-            response: The LLM's response in CALENDAR format
-            
-        Returns:
-            Dictionary with the event details
-            
-        Raises:
-            ValueError: If required fields are missing or invalid
-        """
-        if not response.startswith("CALENDAR"):
-            raise ValueError("Response must start with 'CALENDAR'")
-
-        lines = response.split('\n')
-        event_details = {}
-        
-        for line in lines[1:]:  # Skip the CALENDAR line
-            if ':' in line:
-                key, value = line.split(':', 1)
-                key = key.strip().lower()
-                value = value.strip()
+            # Check if it's a calendar event
+            if response.strip().startswith("CALENDAR"):
+                # Parse the calendar event details
+                event_details = {}
+                for line in response.split("\n"):
+                    if ":" in line:
+                        key, value = line.split(":", 1)
+                        key = key.strip().lower()
+                        value = value.strip()
+                        if value:  # Only add non-empty values
+                            # Convert duration_minutes to integer
+                            if key == "duration_minutes":
+                                try:
+                                    value = int(value)
+                                except ValueError:
+                                    value = self.default_duration
+                            # Parse attendees if present
+                            elif key == "attendees":
+                                value = self._parse_attendees(value)
+                            event_details[key] = value
                 
-                if value and value != "none":  # Skip empty or "none" values
-                    if key == "duration_minutes":
-                        try:
-                            event_details["duration_minutes"] = int(value)
-                        except ValueError:
-                            logger.warning("Invalid duration value: %s, using default", value)
-                            event_details["duration_minutes"] = self.default_duration
-                    elif key == "attendees":
-                        event_details["attendees"] = [email.strip() for email in value.split(',')]
-                    else:
-                        event_details[key] = value
-        
-        # Validate required fields
-        required_fields = ['title', 'date', 'time']
-        missing_fields = [field for field in required_fields if field not in event_details]
-        
-        if missing_fields:
-            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
-            
-        return event_details
+                # Validate required fields
+                required_fields = ["title", "date", "time"]
+                missing_fields = [field for field in required_fields if field not in event_details]
+                if missing_fields:
+                    raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+                
+                # Add default duration if not specified
+                if "duration_minutes" not in event_details:
+                    event_details["duration_minutes"] = self.default_duration
+                
+                return event_details
+            else:
+                # Return the natural response
+                return response.strip()
+                
+        except Exception as e:
+            logger.error("Error analyzing message: %s", str(e))
+            raise
 
 def test_analyzer():
-    """Test the CalendarAnalyzer with various inputs."""
+    """Test the calendar analyzer with some example messages."""
     analyzer = CalendarAnalyzer()
     
-    test_cases = [
-        "Dinner with Belinda next Friday at 6pm",
-        "When is next Friday?"
+    test_messages = [
+        "dinner with alex tomorrow",
     ]
     
-    print("\nTesting Calendar Analyzer")
-    print("-" * 50)
-    
-    for message in test_cases:
-        print(f"\nTest message: {message}")
+    for message in test_messages:
+        print(f"\nTesting message: {message}")
         try:
             result = analyzer.analyze_message(message)
-            if isinstance(result, dict):
-                print("Calendar Event detected:")
-                print(f"- Title: {result['title']}")
-                print(f"- Date: {result['date']}")
-                print(f"- Time: {result['time']}")
-                print(f"- Duration: {result.get('duration_minutes', 60)} minutes")
-                if 'description' in result:
-                    print(f"- Description: {result['description']}")
-                if 'location' in result:
-                    print(f"- Location: {result['location']}")
-                if 'attendees' in result:
-                    print(f"- Attendees: {', '.join(result['attendees'])}")
-            else:
-                print("Natural response:", result)
+            print(result)
         except Exception as e:
-            print(f"Error: {str(e)}")
-        print("-" * 50)
+            print(f"Error: {e}")
 
 if __name__ == "__main__":
     test_analyzer()
