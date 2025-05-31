@@ -76,10 +76,14 @@ class Agent:
             # Analyze the message with conversation history
             result = self.analyzer.analyze_message(message, conversation_history=formatted_history)
             print(result)
-            # If it's a calendar event, create it
+            
+            # Handle different types of responses
             if isinstance(result, dict):
-                event = self._create_calendar_event(result)
-                response = self._format_event_response(event)
+                if result.get('type') == 'delete':
+                    response = self._handle_event_deletion(result)
+                else:
+                    event = self._create_calendar_event(result)
+                    response = self._format_event_response(event)
             else:
                 response = result
             
@@ -175,6 +179,70 @@ class Agent:
         except Exception as e:
             logger.error(f"Error formatting event response: {str(e)}")
             return "Event created, but there was an error formatting the response."
+
+    def _handle_event_deletion(self, delete_details: Dict[str, Any]) -> str:
+        """
+        Handle the deletion of calendar events.
+        
+        Args:
+            delete_details: Dictionary containing deletion criteria
+            
+        Returns:
+            A response string indicating the result of the operation
+        """
+        try:
+            # List events that match the criteria
+            events = self.calendar_tool.list_events(
+                start_date=delete_details.get('date'),
+                end_date=delete_details.get('date'),
+                title=delete_details.get('title')
+            )
+            
+            if events['status'] == 'error':
+                return f"Error listing events: {events['error']}"
+            
+            matching_events = []
+            for event in events['events']:
+                # Check if event matches all provided criteria
+                matches = True
+                if 'date' in delete_details:
+                    event_date = event['start'].split('T')[0]
+                    if event_date != delete_details['date']:
+                        matches = False
+                if 'time' in delete_details:
+                    event_time = event['start'].split('T')[1][:5]
+                    if event_time != delete_details['time']:
+                        matches = False
+                if 'title' in delete_details:
+                    if delete_details['title'].lower() not in event['summary'].lower():
+                        matches = False
+                
+                if matches:
+                    matching_events.append(event)
+            
+            if not matching_events:
+                return "No matching events found to delete."
+            
+            if len(matching_events) > 1:
+                # If multiple events match, list them for confirmation
+                response = "Multiple events match your criteria. Please specify which one to delete:\n\n"
+                for i, event in enumerate(matching_events, 1):
+                    start_time = datetime.fromisoformat(event['start'].replace('Z', '+00:00'))
+                    response += f"{i}. {event['summary']} on {start_time.strftime('%B %d, %Y at %I:%M %p')}\n"
+                return response
+            
+            # Delete the single matching event
+            event = matching_events[0]
+            result = self.calendar_tool.delete_event(event['id'])
+            
+            if result['status'] == 'success':
+                return f"✅ Successfully deleted event: {event['summary']}"
+            else:
+                return f"Error deleting event: {result['error']}"
+            
+        except Exception as e:
+            logger.error("Error handling event deletion: %s", str(e), exc_info=True)
+            return f"Error handling event deletion: {str(e)}"
 
 def test_agent():
     """Test the Agent with various inputs."""
