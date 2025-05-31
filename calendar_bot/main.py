@@ -18,9 +18,19 @@ def get_form_html():
     history_html = ""
     for msg in agent.conversation_history if hasattr(agent, 'conversation_history') else []:
         history_html += f"""
-        <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
-            <strong>You:</strong> {msg['user']}<br>
-            <strong>Assistant:</strong> {msg['assistant']}
+        <div class="message">
+            <div class="message-content user-message">
+                <div class="message-header">
+                    <span class="sender">You</span>
+                </div>
+                <div class="message-text">{msg['user']}</div>
+            </div>
+            <div class="message-content assistant-message">
+                <div class="message-header">
+                    <span class="sender">Assistant</span>
+                </div>
+                <div class="message-text">{msg['assistant']}</div>
+            </div>
         </div>
         """
     
@@ -28,29 +38,196 @@ def get_form_html():
     <html>
         <head>
             <title>Calendar Agent</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                form {{ margin: 20px 0; }}
-                input[type="text"] {{ padding: 8px; width: 300px; }}
-                button {{ padding: 8px 16px; }}
-                .conversation {{ margin: 20px 0; }}
-                .clear-btn {{ margin-left: 10px; }}
-                .event-link {{ color: #0066cc; text-decoration: none; }}
-                .event-link:hover {{ text-decoration: underline; }}
+                :root {{
+                    --primary-color: #2196F3;
+                    --secondary-color: #E3F2FD;
+                    --text-color: #333;
+                    --border-radius: 8px;
+                    --spacing: 16px;
+                }}
+                
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f5f5f5;
+                    color: var(--text-color);
+                    line-height: 1.6;
+                }}
+                
+                .container {{
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: var(--spacing);
+                }}
+                
+                h2 {{
+                    color: var(--primary-color);
+                    margin-bottom: var(--spacing);
+                    text-align: center;
+                }}
+                
+                .conversation {{
+                    background: white;
+                    border-radius: var(--border-radius);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    padding: var(--spacing);
+                    margin-bottom: var(--spacing);
+                    max-height: 70vh;
+                    overflow-y: auto;
+                }}
+                
+                .message {{
+                    margin-bottom: var(--spacing);
+                }}
+                
+                .message-content {{
+                    padding: var(--spacing);
+                    border-radius: var(--border-radius);
+                    margin-bottom: 8px;
+                }}
+                
+                .user-message {{
+                    background-color: var(--primary-color);
+                    color: white;
+                    margin-left: 20%;
+                }}
+                
+                .assistant-message {{
+                    background-color: var(--secondary-color);
+                    margin-right: 20%;
+                }}
+                
+                .message-header {{
+                    margin-bottom: 8px;
+                    font-size: 0.9em;
+                }}
+                
+                .sender {{
+                    font-weight: bold;
+                }}
+                
+                .message-text {{
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }}
+                
+                .input-container {{
+                    background: white;
+                    padding: var(--spacing);
+                    border-radius: var(--border-radius);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }}
+                
+                form {{
+                    display: flex;
+                    gap: var(--spacing);
+                    margin-bottom: var(--spacing);
+                }}
+                
+                input[type="text"] {{
+                    flex: 1;
+                    padding: 12px;
+                    border: 2px solid #ddd;
+                    border-radius: var(--border-radius);
+                    font-size: 16px;
+                    transition: border-color 0.3s;
+                }}
+                
+                input[type="text"]:focus {{
+                    outline: none;
+                    border-color: var(--primary-color);
+                }}
+                
+                button {{
+                    padding: 12px 24px;
+                    background-color: var(--primary-color);
+                    color: white;
+                    border: none;
+                    border-radius: var(--border-radius);
+                    cursor: pointer;
+                    font-size: 16px;
+                    transition: background-color 0.3s;
+                }}
+                
+                button:hover {{
+                    background-color: #1976D2;
+                }}
+                
+                .clear-btn {{
+                    background-color: #f44336;
+                }}
+                
+                .clear-btn:hover {{
+                    background-color: #d32f2f;
+                }}
+                
+                .event-link {{
+                    color: var(--primary-color);
+                    text-decoration: none;
+                    font-weight: bold;
+                }}
+                
+                .event-link:hover {{
+                    text-decoration: underline;
+                }}
+                
+                @media (max-width: 600px) {{
+                    .container {{
+                        padding: 8px;
+                    }}
+                    
+                    .message-content {{
+                        margin-left: 0 !important;
+                        margin-right: 0 !important;
+                    }}
+                    
+                    form {{
+                        flex-direction: column;
+                    }}
+                    
+                    button {{
+                        width: 100%;
+                    }}
+                }}
             </style>
+            <script>
+                // Auto-scroll to bottom of conversation
+                function scrollToBottom() {{
+                    const conversation = document.querySelector('.conversation');
+                    conversation.scrollTop = conversation.scrollHeight;
+                }}
+                
+                // Scroll to bottom when page loads
+                window.onload = scrollToBottom;
+                
+                // Scroll to bottom after form submission
+                document.addEventListener('DOMContentLoaded', function() {{
+                    const form = document.querySelector('form');
+                    form.addEventListener('submit', function() {{
+                        setTimeout(scrollToBottom, 100);
+                    }});
+                }});
+            </script>
         </head>
         <body>
-            <h2>Calendar Agent Conversation</h2>
-            <div class="conversation">
-                {history_html}
+            <div class="container">
+                <h2>Calendar Agent</h2>
+                <div class="conversation">
+                    {history_html}
+                </div>
+                <div class="input-container">
+                    <form action="/chat" method="post">
+                        <input type="text" name="message" required placeholder="Type your message..." autocomplete="off" />
+                        <button type="submit">Send</button>
+                    </form>
+                    <form action="/clear" method="post" style="display: inline;">
+                        <button type="submit" class="clear-btn">Clear Conversation</button>
+                    </form>
+                </div>
             </div>
-            <form action="/chat" method="post">
-                <input type="text" name="message" required placeholder="Type your message..." />
-                <button type="submit">Send</button>
-            </form>
-            <form action="/clear" method="post" style="display: inline;">
-                <button type="submit" class="clear-btn">Clear Conversation</button>
-            </form>
         </body>
     </html>
     """

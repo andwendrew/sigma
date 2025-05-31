@@ -3,18 +3,17 @@ import sys
 import os
 import logging
 from datetime import datetime
+from calendar_bot.agent.components.date_utils import get_next_two_weeks_dates
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
 from calendar_bot.llm.llama_local import get_llama_llm
 from calendar_bot.agent.components.prompts import CALENDAR_ANALYZER_PROMPT
+from calendar_bot.llm.llama_local import MODEL_NAME
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Model configuration
-MODEL_NAME = "llama2"
 _llm_instance = None
 
 def get_llm():
@@ -23,11 +22,10 @@ def get_llm():
     if _llm_instance is None:
         logger.info("Initializing LLM with model: %s", MODEL_NAME)
         _llm_instance = get_llama_llm(
-            system_prompt="You are a helpful assistant that creates calendar events.",
-            temperature=0.7,
-            top_p=0.9,
-            top_k=40,
-            num_predict=2048
+            temperature=0.2,  # Lower temperature for more deterministic responses
+            top_p=0.3,       # Lower top_p for more focused responses
+            top_k=20,        # Lower top_k for more precise token selection
+            num_predict=512  # Reduced max tokens since calendar events are concise
         )
     return _llm_instance
 
@@ -91,16 +89,18 @@ class CalendarAnalyzer:
         # Format the prompt with current date and conversation history
         today = datetime.now().strftime("%Y-%m-%d")
         day_of_week = datetime.now().strftime("%A")
-        formatted_prompt = CALENDAR_ANALYZER_PROMPT.format(
+        
+        # Create the system prompt with calendar instructions
+        system_prompt = CALENDAR_ANALYZER_PROMPT.format(
             today=today,
             day_of_week=day_of_week,
             conversation_history=conversation_history,
-            message=message
+            date_mapping=get_next_two_weeks_dates(today, day_of_week)
         )
-        
+
         try:
-            # Get response from LLM
-            response = self.llm(formatted_prompt)
+            # Get response from LLM with the calendar system prompt
+            response = self.llm(prompt=message, system_prompt=system_prompt)
             logger.info("Received response from LLM")
             
             # Check if it's a calendar event
@@ -148,9 +148,8 @@ def test_analyzer():
     analyzer = CalendarAnalyzer()
     
     test_messages = [
-        "dinner with alex tomorrow",
+        "jane street interview this sunday 7am"
     ]
-    
     for message in test_messages:
         print(f"\nTesting message: {message}")
         try:
