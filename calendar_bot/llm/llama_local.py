@@ -173,6 +173,7 @@ if __name__ == "__main__":
                 conversation_history="",
                 date_mapping=get_next_two_weeks_dates(datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%A"))
             )
+            print(system_prompt)
             response = llm(user_input, system_prompt=system_prompt)
             print("\nResponse:", response)
         except Exception as e:

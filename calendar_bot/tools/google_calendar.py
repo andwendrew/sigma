@@ -146,6 +146,7 @@ def create_calendar_event(
     date: str,
     time: str,
     duration_minutes: int = 60,
+    notification_minutes: int = 10,
     description: Optional[str] = None,
     location: Optional[str] = None,
     attendees: Optional[list] = None,
@@ -159,6 +160,7 @@ def create_calendar_event(
         date: Event date (various formats supported)
         time: Event time (various formats supported)
         duration_minutes: Event duration in minutes (default: 60)
+        notification_minutes: Minutes before event to send notification (default: 10)
         description: Optional event description
         location: Optional event location
         attendees: Optional list of attendee email addresses
@@ -188,6 +190,12 @@ def create_calendar_event(
                 'dateTime': end_datetime.isoformat(),
                 'timeZone': timezone,
             },
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'popup', 'minutes': notification_minutes}
+                ]
+            }
         }
         
         # Add optional fields
@@ -211,7 +219,8 @@ def create_calendar_event(
             'summary': event['summary'],
             'start': event['start']['dateTime'],
             'end': event['end']['dateTime'],
-            'calendar_id': calendar_id
+            'calendar_id': calendar_id,
+            'notification_minutes': notification_minutes
         }
         
     except Exception as e:

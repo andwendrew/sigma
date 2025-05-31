@@ -3,70 +3,11 @@
 from datetime import datetime
 
 DATE_REFERENCE_TRANSFORMER_PROMPT = """
-Context: Today is {today}, {day_of_week}.
+You are a helpful assistant. Today is {today}, {day_of_week}.
 
-Transform the user's date/time references into a Python dictionary that can be reliably computed.
-IMPORTANT: Return a raw Python dictionary, not a string representation of a dictionary.
+For reference, here is a list of the next two weeks' from today's dates and days of the week:
+{date_mapping}
 
-Valid output formats (return these exact Python dictionaries):
-1. For single dates:
-dict(type="single", reference="TODAY", offset=0)
-dict(type="single", reference="MONDAY", offset=7)
-
-2. For date ranges:
-dict(type="range", reference="TODAY", offset=0, end_reference="FRIDAY", end_offset=0)
-
-3. For errors:
-dict(error="no_date")
-dict(error="ambiguous")
-
-Valid reference values (use these EXACTLY):
-TODAY
-TOMORROW
-MONDAY
-TUESDAY
-WEDNESDAY
-THURSDAY
-FRIDAY
-SATURDAY
-SUNDAY
-
-Rules (return these exact Python dictionaries):
-1. For single dates:
-   - "today" -> dict(type="single", reference="TODAY", offset=0)
-   - "tomorrow" -> dict(type="single", reference="TODAY", offset=1)
-   - "next [day]" -> dict(type="single", reference="[day]", offset=7)
-   - "this [day]" -> dict(type="single", reference="[day]", offset=0)
-   - "in X days" -> dict(type="single", reference="TODAY", offset=X)
-   - "X days from [day]" -> dict(type="single", reference="[day]", offset=X)
-
-2. For date ranges:
-   - "from [day] to [day]" -> dict(type="range", reference="[day]", offset=0, end_reference="[day]", end_offset=0)
-   - "until [day]" -> dict(type="range", reference="TODAY", offset=0, end_reference="[day]", end_offset=0)
-   - "next X days" -> dict(type="range", reference="TODAY", offset=0, end_reference="TODAY", end_offset=X)
-
-3. For ambiguous cases:
-   - If multiple interpretations possible, choose the closest future date
-   - If unclear, return dict(error="ambiguous")
-   - If no date reference found, return dict(error="no_date")
-
-Examples (return these exact Python dictionaries):
-1. Single dates:
-   - "next Monday" -> dict(type="single", reference="MONDAY", offset=7)
-   - "this Friday" -> dict(type="single", reference="FRIDAY", offset=0)
-   - "in 3 days" -> dict(type="single", reference="TODAY", offset=3)
-   - "2 days after next Tuesday" -> dict(type="single", reference="TUESDAY", offset=9)
-
-2. Date ranges:
-   - "from Monday to Friday" -> dict(type="range", reference="MONDAY", offset=0, end_reference="FRIDAY", end_offset=0)
-   - "until next Wednesday" -> dict(type="range", reference="TODAY", offset=0, end_reference="WEDNESDAY", end_offset=7)
-   - "next 5 days" -> dict(type="range", reference="TODAY", offset=0, end_reference="TODAY", end_offset=5)
-
-3. Error cases:
-   - "schedule a workout" -> dict(error="no_date")
-   - "next week sometime" -> dict(error="ambiguous")
-
-If the message contains no date references, return dict(error="no_date").
 """
 
 CALENDAR_ANALYZER_PROMPT = """
@@ -83,6 +24,7 @@ title: [event title]
 date: [YYYY-MM-DD]
 time: [HH:MM]
 duration_minutes: [default 60 if not specified]
+notification_minutes: [default 10 if not specified]
 description: [leave blank if not specified]
 location: [leave blank if not specified]
 attendees: [leave blank if not specified]
@@ -99,6 +41,7 @@ Rules:
    - Use 12:00 PM for "noon", 12:00 AM for "midnight"
    - Leave optional fields blank
    - Do not make up email addresses
+   - For notification_minutes, use the specified time or default to 10 minutes
 
 2. For non-calendar related queries:
    - Give a natural, helpful response

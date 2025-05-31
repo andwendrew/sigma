@@ -119,6 +119,12 @@ class CalendarAnalyzer:
                                     value = int(value)
                                 except ValueError:
                                     value = self.default_duration
+                            # Convert notification_minutes to integer
+                            elif key == "notification_minutes":
+                                try:
+                                    value = int(value)
+                                except ValueError:
+                                    value = 10  # Default notification time
                             # Parse attendees if present
                             elif key == "attendees":
                                 value = self._parse_attendees(value)
@@ -134,6 +140,10 @@ class CalendarAnalyzer:
                 if "duration_minutes" not in event_details:
                     event_details["duration_minutes"] = self.default_duration
                 
+                # Add default notification time if not specified
+                if "notification_minutes" not in event_details:
+                    event_details["notification_minutes"] = 10
+                
                 return event_details
             else:
                 # Return the natural response
@@ -148,7 +158,7 @@ def test_analyzer():
     analyzer = CalendarAnalyzer()
     
     test_messages = [
-        "jane street interview this sunday 7am"
+        "jane street interview this sunday 7am, notify me 2 hour before"
     ]
     for message in test_messages:
         print(f"\nTesting message: {message}")

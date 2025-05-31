@@ -117,7 +117,8 @@ class Agent:
                 description=event_details.get('description', ''),
                 location=event_details.get('location', ''),
                 duration_minutes=event_details.get('duration_minutes', 60),
-                attendees=event_details.get('attendees', [])
+                attendees=event_details.get('attendees', []),
+                notification_minutes=event_details.get('notification_minutes', 10)
             )
             
             if event['status'] == 'success':
