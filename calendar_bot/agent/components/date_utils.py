@@ -47,6 +47,18 @@ def get_next_two_weeks_dates(today: str, day_of_week: str) -> str:
     
     # Format the output as a string
     output = []
+    
+    # Add "in X days" format for the next 7 days
+    output.append("Days from today:")
+    for i in range(1, 8):  # 1 to 7 days
+        date = current_date + timedelta(days=i)
+        date_str = date.strftime("%Y-%m-%d")
+        day = date.strftime("%A")
+        output.append(f"  in {i} day{'s' if i > 1 else ''}: {date_str} ({day})")
+    output.append("")  # Add blank line
+    
+    # Add week-based format
+    output.append("By week:")
     for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]:
         if day in dates_by_day:
             dates = dates_by_day[day]

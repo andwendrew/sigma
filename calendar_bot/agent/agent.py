@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
+from collections import deque
 
 from calendar_bot.agent.components.calendar_analyzer import CalendarAnalyzer
 from calendar_bot.tools.google_calendar import create_calendar_event
@@ -35,11 +36,13 @@ class CalendarTool:
 class Agent:
     """Main agent that handles all calendar operations and user interactions."""
     
-    def __init__(self):
+    def __init__(self, max_history_length: int = 10):
         """Initialize the Agent with required components."""
         self.analyzer = CalendarAnalyzer()
         self.calendar_tool = CalendarTool()
-        self.conversation_history = []  # Initialize conversation history
+        self.max_history_interactions = 7  # Maximum number of interactions to keep
+        self.conversation_history = deque(maxlen=self.max_history_interactions)  # Initialize conversation history with maxlen
+        self.full_conversation_history = []
         logger.info("Agent initialized")
     
     def format_conversation_history(self) -> str:
@@ -80,22 +83,26 @@ class Agent:
             else:
                 response = result
             
-            # Update conversation history
-            self.conversation_history.append({
+            # Update conversation history (deque automatically handles maxlen)
+            history_entry = {
                 'user': message,
                 'assistant': response
-            })
+            }
+            self.conversation_history.append(history_entry)
+            self.full_conversation_history.append(history_entry)
             
             return response
             
         except Exception as e:
             logger.error("Error processing message: %s", str(e), exc_info=True)
             error_response = f"I'm sorry, I encountered an error: {str(e)}"
-            # Add error to conversation history
-            self.conversation_history.append({
+            # Add error to conversation history (deque automatically handles maxlen)
+            history_entry = {
                 'user': message,
                 'assistant': error_response
-            })
+            }
+            self.conversation_history.append(history_entry)
+            self.full_conversation_history.append(history_entry)
             return error_response
     
     def _create_calendar_event(self, event_details: Dict[str, Any]) -> Dict[str, Any]:

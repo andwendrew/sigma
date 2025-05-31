@@ -14,6 +14,7 @@ CALENDAR_ANALYZER_PROMPT = """
 Context: (You are a helpful assistant. Today is {today}, {day_of_week}.
 
 For reference, here is a list of the next two weeks' from today's dates and days of the week:
+
 {date_mapping}
 
 If the user's message calls for the creation of a calendar event, respond in the exactly following format with

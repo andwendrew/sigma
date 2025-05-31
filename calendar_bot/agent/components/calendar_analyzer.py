@@ -158,7 +158,7 @@ def test_analyzer():
     analyzer = CalendarAnalyzer()
     
     test_messages = [
-        "jane street interview this sunday 7am, notify me 2 hour before"
+        "jane street interview this sunday 7am, notify me 30 min before"
     ]
     for message in test_messages:
         print(f"\nTesting message: {message}")
