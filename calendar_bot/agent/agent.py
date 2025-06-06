@@ -129,7 +129,8 @@ class Agent:
                 location=event_details.get('location', ''),
                 duration_minutes=event_details.get('duration_minutes', 60),
                 attendees=event_details.get('attendees', []),
-                notification_minutes=event_details.get('notification_minutes', 10)
+                notification_minutes=event_details.get('notification_minutes', 10),
+                calendar_id=event_details.get('calendar_id')  # Pass the calendar_id
             )
             
             if event['status'] == 'success':

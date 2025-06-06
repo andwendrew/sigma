@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timedelta
 import time
 import tzlocal
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -112,34 +112,60 @@ def create_calendar(calendar_name: str, description: Optional[str] = None, timez
             'error': str(e)
         }
 
-def list_calendars() -> List[Dict[str, Any]]:
+def list_calendars(active_only: bool = True, cleaned: bool = False) -> Union[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     """
-    List all calendars the user has access to.
+    List calendars the user has access to.
+    
+    Args:
+        active_only: If True, only return calendars that are currently selected/visible.
+                    If False, return all calendars regardless of visibility.
+        cleaned: If True, return a dictionary mapping calendar IDs to their details.
+                If False, return a list of full calendar details.
     
     Returns:
-        List of dictionaries containing calendar details
+        If cleaned=True: Dictionary mapping calendar IDs to their details
+        If cleaned=False: List of dictionaries containing full calendar details
     """
     try:
         service = get_calendar_service()
         calendar_list = service.calendarList().list().execute()
         
-        calendars = []
-        for calendar in calendar_list['items']:
-            calendars.append({
-                'id': calendar['id'],
-                'summary': calendar['summary'],
-                'description': calendar.get('description', ''),
-                'timezone': calendar.get('timeZone', ''),
-                'primary': calendar.get('primary', False)
-            })
-            
-        return calendars
+        if cleaned:
+            # Return dictionary mapping IDs to calendar details
+            calendars = {}
+            for calendar in calendar_list['items']:
+                if not active_only or calendar.get('selected', False):
+                    calendars[calendar['id']] = {
+                        'title': calendar['summary'],
+                        'description': calendar.get('description', 'No description'),
+                        'timezone': calendar.get('timeZone', 'Not specified'),
+                        'is_primary': calendar.get('primary', False)
+                    }
+            return calendars
+        else:
+            # Return list of full calendar details
+            calendars = []
+            for calendar in calendar_list['items']:
+                if not active_only or calendar.get('selected', False):
+                    calendars.append({
+                        'id': calendar['id'],
+                        'summary': calendar['summary'],
+                        'description': calendar.get('description', ''),
+                        'timezone': calendar.get('timeZone', ''),
+                        'primary': calendar.get('primary', False),
+                        'selected': calendar.get('selected', False),
+                        'access_role': calendar.get('accessRole', '')
+                    })
+            return calendars
         
     except Exception as e:
-        return [{
-            'status': 'error',
-            'error': str(e)
-        }]
+        if cleaned:
+            return {'error': {'error': str(e)}}
+        else:
+            return [{
+                'status': 'error',
+                'error': str(e)
+            }]
 
 def create_calendar_event(
     title: str,

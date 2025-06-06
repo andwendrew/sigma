@@ -4,6 +4,7 @@ import os
 import logging
 from datetime import datetime
 from calendar_bot.agent.components.date_utils import get_next_two_weeks_dates
+from calendar_bot.tools.google_calendar import list_calendars
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
@@ -14,6 +15,10 @@ from calendar_bot.llm.llama_local import MODEL_NAME
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Suppress Google API client warnings
+logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
+
 _llm_instance = None
 
 def get_llm():
@@ -41,7 +46,47 @@ class CalendarAnalyzer:
         """
         self.llm = get_llm()
         self.default_duration = default_duration
+        self.available_calendars = {}  # Cache for calendar lookups
+        self.primary_calendar_id = None
         logger.info("CalendarAnalyzer initialized with default duration: %d minutes", default_duration)
+    
+    def _update_calendar_cache(self):
+        """Update the cache of available calendars."""
+        calendars = list_calendars()
+        self.available_calendars = {
+            cal['id']: cal for cal in calendars
+        }
+        # Store primary calendar ID
+        primary_cal = next((cal for cal in calendars if cal.get('primary')), None)
+        if primary_cal:
+            self.primary_calendar_id = primary_cal['id']
+        else:
+            self.primary_calendar_id = None
+    
+    def _parse_calendar_id(self, calendar_id: str) -> str:
+        """
+        Parse and validate a calendar ID.
+        
+        Args:
+            calendar_id: The calendar ID to validate
+            
+        Returns:
+            The validated calendar ID or the primary calendar's ID if invalid/not found
+        """
+        if not calendar_id:
+            return self.primary_calendar_id
+            
+        # Update calendar cache if empty
+        if not self.available_calendars:
+            self._update_calendar_cache()
+            
+        # Check if the ID exists in our calendars
+        if calendar_id in self.available_calendars:
+            return calendar_id
+            
+        # If not found, return primary calendar ID
+        logger.warning(f"Calendar ID {calendar_id} not found, defaulting to primary calendar")
+        return self.primary_calendar_id
     
     def _parse_attendees(self, attendees_str: str) -> List[str]:
         """
@@ -86,6 +131,9 @@ class CalendarAnalyzer:
             
         logger.info("Analyzing message: %s", message)
         
+        # Update calendar cache
+        self._update_calendar_cache()
+        
         # Format the prompt with current date and conversation history
         today = datetime.now().strftime("%Y-%m-%d")
         day_of_week = datetime.now().strftime("%A")
@@ -95,7 +143,8 @@ class CalendarAnalyzer:
             today=today,
             day_of_week=day_of_week,
             conversation_history=conversation_history,
-            date_mapping=get_next_two_weeks_dates(today, day_of_week)
+            date_mapping=get_next_two_weeks_dates(today, day_of_week),
+            calendar_list=list_calendars()
         )
 
         try:
@@ -104,10 +153,13 @@ class CalendarAnalyzer:
             logger.info("Received response from LLM")
             
             # Check if it's a calendar event
-            if response.strip().startswith("CALENDAR"):
+            if "CALENDAR-----" in response:
+                # Get only the content after CALENDAR-----
+                calendar_content = response.split("CALENDAR-----")[1].strip()
+                
                 # Parse the calendar event details
                 event_details = {}
-                for line in response.split("\n"):
+                for line in calendar_content.split("\n"):
                     if ":" in line:
                         key, value = line.split(":", 1)
                         key = key.strip().lower()
@@ -119,6 +171,9 @@ class CalendarAnalyzer:
                                     value = int(value)
                                 except ValueError:
                                     value = self.default_duration
+                            # Parse calendar_id if present
+                            elif key == "calendar_id":
+                                value = self._parse_calendar_id(value)
                             # Convert notification_minutes to integer
                             elif key == "notification_minutes":
                                 try:
@@ -144,6 +199,10 @@ class CalendarAnalyzer:
                 if "notification_minutes" not in event_details:
                     event_details["notification_minutes"] = 10
                 
+                # Add default calendar_id if not specified
+                if "calendar_id" not in event_details:
+                    event_details["calendar_id"] = self.primary_calendar_id
+                
                 return event_details
             else:
                 # Return the natural response
@@ -158,7 +217,7 @@ def test_analyzer():
     analyzer = CalendarAnalyzer()
     
     test_messages = [
-        "jane street interview this sunday 7am, notify me 30 min before"
+        "lunch with manager david tomorrow noon amazon intern"
     ]
     for message in test_messages:
         print(f"\nTesting message: {message}")

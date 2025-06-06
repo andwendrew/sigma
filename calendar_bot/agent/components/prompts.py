@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+
 DATE_REFERENCE_TRANSFORMER_PROMPT = """
 You are a helpful assistant. Today is {today}, {day_of_week}.
 
@@ -18,17 +19,28 @@ For reference, here is a list of the next two weeks' from today's dates and days
 {date_mapping}
 
 If the user's message calls for the creation of a calendar event, respond in the exactly following format with
-all the relevant fields correctly filled out: 
+all the relevant fields correctly filled out, no matter the history. IMPORTANT: STRICTLY FOLLOW THE FORMAT: 
 
-CALENDAR
+CALENDAR-----
 title: [event title]
 date: [YYYY-MM-DD]
 time: [HH:MM]
 duration_minutes: [default 60 if not specified]
+calendar_id: [IMPORTANT: ALWAYS default to primary calendar's id unless the user EXPLICITLY mentions a different calendar. If there's any ambiguity, use the primary calendar.]
 notification_minutes: [default 10 if not specified]
 description: [leave blank if not specified]
 location: [leave blank if not specified]
 attendees: [leave blank if not specified]
+
+Here is a list of the calendars the user has, with all their info:
+{calendar_list}
+
+IMPORTANT CALENDAR SELECTION RULES:
+1. ALWAYS use the primary calendar by default
+2. Only use a different calendar if the user EXPLICITLY mentions it by name
+3. If the user mentions a calendar name that's not in the list above, use the primary calendar
+4. If there's any ambiguity about which calendar to use, use the primary calendar
+5. The primary calendar is marked with "(Primary Calendar)" in the list above
 
 If the user's message calls for the deletion of a calendar event, respond in the exactly following format:
 
@@ -50,6 +62,7 @@ Rules:
    - Leave optional fields blank
    - Do not make up email addresses
    - For notification_minutes, use the specified time or default to 10 minutes
+   - ALWAYS default to primary calendar unless explicitly specified otherwise
 
 2. For event deletion:
    - At least one of date, time, or title must be specified
